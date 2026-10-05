@@ -36,6 +36,10 @@ int main() {
         int n = read(client_fd, buf, sizeof(buf) - 1);
         if (n > 0) {
             buf[n] = '\0';
+            char method[16], url[512], version[16];
+            sscanf(buf, "%s %s %s", method, url, version);
+            printf("method: %s\n", method);
+            printf("url:    %s\n", url);
             printf("Received:\n%s\n", buf);
         }
 
