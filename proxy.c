@@ -1,10 +1,10 @@
 // proxy core - Ayush
 
-// proxy core - Ayush
 
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include <netdb.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
 
@@ -55,6 +55,25 @@ int main() {
             }
             host[i] = '\0';
             printf("host:   %s\n", host);
+
+	    struct hostent *server = gethostbyname(host);
+	    if (server == NULL){
+		close(client_fd);
+		continue;
+	    }
+	    int remote_fd = socket(AF_INET, SOCK_STREAM, 0);
+	    struct sockaddr_in remote;
+ 	    remote.sin_family = AF_INET;
+    	    remote.sin_port = htons(80);
+	    memcpy(&remote.sin_addr, server->h_addr_list[0], server->h_length);
+	    if (connect(remote_fd, (struct sockaddr*)&remote, sizeof(remote)) < 0) {
+        	printf("Connect failed\n");
+        	close(remote_fd);
+		close(client_fd);
+		continue;
+    	    }
+	    printf("connected to %s\n", host);
+ 	    close(remote_fd);
 
             printf("Received:\n%s\n", buf);
         }
