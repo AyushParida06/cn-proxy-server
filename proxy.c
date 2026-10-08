@@ -63,6 +63,7 @@ int main() {
 	    }
 	    int remote_fd = socket(AF_INET, SOCK_STREAM, 0);
 	    struct sockaddr_in remote;
+	    memset(&remote, 0, sizeof(remote));
  	    remote.sin_family = AF_INET;
     	    remote.sin_port = htons(80);
 	    memcpy(&remote.sin_addr, server->h_addr_list[0], server->h_length);
@@ -73,15 +74,25 @@ int main() {
 		continue;
     	    }
 	    printf("connected to %s\n", host);
+	    char *path = strchr(url + 7, '/');
+	    if (path == NULL){
+		path = "/";
+	    }
+	    char req[1024];
+	    snprintf(req, sizeof(req), "GET %s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", path, host);
+	    printf("Sending:\n%s", req);
+	    write(remote_fd, req, strlen(req));
+	    char tmp[4096];
+	    int r;
+	    while ((r = read(remote_fd, tmp, sizeof(tmp))) > 0){
+		write(client_fd, tmp, r);
+	    }	
  	    close(remote_fd);
 
             printf("Received:\n%s\n", buf);
         }
 
-        // send a fixed HTTP reply (body is 16 bytes including the newline)
-        char *reply = "HTTP/1.1 200 OK\r\nContent-Length: 16\r\n\r\nproxy is alive!\n";
-        write(client_fd, reply, strlen(reply));
-
+        
         // done with this client; the server socket stays open for the next one
         close(client_fd);
     }
