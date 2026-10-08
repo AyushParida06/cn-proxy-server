@@ -40,7 +40,13 @@ int main() {
             // split the first line into method, url and version
             // (the numbers limit how many characters are read, so long input cannot overflow)
             char method[16], url[512], version[16];
-            sscanf(buf, "%15s %511s %15s", method, url, version);
+            int parsed = sscanf(buf, "%15s %511s %15s", method, url, version);
+	    if(parsed < 3 || strncmp(url, "http://", 7) != 0){
+		char *bad_request = "HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n";
+		write(client_fd, bad_request, strlen(bad_request));
+		close(client_fd);
+		continue;
+	    }
             printf("method: %s\n", method);
             printf("url:    %s\n", url);
 
@@ -58,6 +64,8 @@ int main() {
 
 	    struct hostent *server = gethostbyname(host);
 	    if (server == NULL){
+		char *bad_gateway = "HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\n\r\n";
+		write(client_fd, bad_gateway, strlen(bad_gateway));
 		close(client_fd);
 		continue;
 	    }
@@ -69,6 +77,8 @@ int main() {
 	    memcpy(&remote.sin_addr, server->h_addr_list[0], server->h_length);
 	    if (connect(remote_fd, (struct sockaddr*)&remote, sizeof(remote)) < 0) {
         	printf("Connect failed\n");
+		char *bad_gateway = "HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\n\r\n";
+		write(client_fd, bad_gateway, strlen(bad_gateway));
         	close(remote_fd);
 		close(client_fd);
 		continue;
