@@ -36,10 +36,26 @@ int main() {
         int n = read(client_fd, buf, sizeof(buf) - 1);
         if (n > 0) {
             buf[n] = '\0';
+
+            // split the first line into method, url and version
+            // (the numbers limit how many characters are read, so long input cannot overflow)
             char method[16], url[512], version[16];
-            sscanf(buf, "%s %s %s", method, url, version);
+            sscanf(buf, "%15s %511s %15s", method, url, version);
             printf("method: %s\n", method);
             printf("url:    %s\n", url);
+
+            // NEW: skip "http://" (7 characters), then copy the host name
+            // until we reach '/', ':' or the end of the string
+            char host[256];
+            char *start = url + 7;
+            int i = 0;
+            while (start[i] != '/' && start[i] != ':' && start[i] != '\0' && i < 255) {
+                host[i] = start[i];
+                i++;
+            }
+            host[i] = '\0';
+            printf("host:   %s\n", host);
+
             printf("Received:\n%s\n", buf);
         }
 
