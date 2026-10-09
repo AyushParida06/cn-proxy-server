@@ -9,6 +9,7 @@
 #include <netdb.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
+#include <arpa/inet.h>
 
 #define PORT 8888
 
@@ -48,10 +49,18 @@ void handle_connect(int client_fd, char *target){
     close(client_fd);
 }
 
+struct client_info {
+    int fd;
+    char ip[16];
+};
+
 // runs in its own thread: handles exactly one client
 void *handle_client(void *arg) {
     // get our socket from the box main() made, then free the box
-    int client_fd = *(int *)arg;
+    struct client_info *info = (struct client_info *)arg;
+    int client_fd = info->fd;
+    char client_ip[16];
+    strcpy(client_ip, info->ip);
     free(arg);
 
     // read the request into buf and end it with '\0' so it is a valid string
@@ -82,6 +91,7 @@ void *handle_client(void *arg) {
         }
 
         printf("method: %s\n", method);
+	printf("client: %s\n", client_ip);
         printf("url:    %s\n", url);
 
         // skip "http://" (7 characters), then copy the host name
@@ -166,11 +176,15 @@ int main() {
 
     // keep accepting clients; each one gets its own thread
     while (1) {
-        int client_fd = accept(server_fd, NULL, NULL);
+	struct sockaddr_in client_addr;
+	socklen_t len = sizeof(client_addr);
+        int client_fd = accept(server_fd, (struct sockaddr*)&client_addr, &len);
+	char *ip = inet_ntoa(client_addr.sin_addr);
 
         // a separate box per client, so the thread has its own copy
-        int *p = malloc(sizeof(int));
-        *p = client_fd;
+        struct client_info *p = malloc(sizeof(struct client_info));
+        p->fd = client_fd;
+	strcpy(p->ip, ip);
 
         pthread_t t;
         pthread_create(&t, NULL, handle_client, p);
