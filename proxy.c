@@ -1,8 +1,6 @@
 // proxy core - Ayush
 
-
-// proxy core - Ayush
-
+#include <sys/select.h>
 #include <stdlib.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -29,12 +27,25 @@ void *handle_client(void *arg) {
         // split the first line into method, url and version
         char method[16], url[512], version[16];
         int parsed = sscanf(buf, "%15s %511s %15s", method, url, version);
-        if (parsed < 3 || strncmp(url, "http://", 7) != 0) {
-            char *bad_request = "HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n";
+	char *bad_request = "HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n";
+
+	if (parsed < 3) {
             write(client_fd, bad_request, strlen(bad_request));
             close(client_fd);
             return NULL;
         }
+	
+	if (strcmp(method, "CONNECT") == 0){
+	    printf("CONNECT to %s\n", url);
+    	    close(client_fd);
+    	    return NULL;
+	}
+	if (strncmp(url, "http://", 7) != 0) {
+            write(client_fd, bad_request, strlen(bad_request));
+            close(client_fd);
+            return NULL;
+        }
+
         printf("method: %s\n", method);
         printf("url:    %s\n", url);
 
