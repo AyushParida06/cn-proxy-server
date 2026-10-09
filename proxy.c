@@ -1,8 +1,6 @@
 // proxy core - Ayush
 
 
-// proxy core - Ayush
-
 #include <stdlib.h>
 #include <pthread.h>
 #include <stdio.h>
