@@ -12,6 +12,42 @@
 
 #define PORT 8888
 
+void handle_connect(int client_fd, char *target){
+    int port = 443;                      
+
+    char *colon = strchr(target, ':');
+    if (colon != NULL) {
+    	*colon = '\0';
+   	 port = atoi(colon + 1);
+    }
+    struct hostent *server = gethostbyname(target);
+    if (server == NULL) {
+        char *bad_gateway = "HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\n\r\n";
+        write(client_fd, bad_gateway, strlen(bad_gateway));
+        close(client_fd);
+        return;
+    }
+
+    // second socket, to the real website
+    int remote_fd = socket(AF_INET, SOCK_STREAM, 0);
+    struct sockaddr_in remote;
+    memset(&remote, 0, sizeof(remote));
+    remote.sin_family = AF_INET;
+    remote.sin_port = htons(port);
+    memcpy(&remote.sin_addr, server->h_addr_list[0], server->h_length);
+    if (connect(remote_fd, (struct sockaddr*)&remote, sizeof(remote)) < 0) {
+        printf("Connect failed\n");
+        char *bad_gateway = "HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\n\r\n";
+        write(client_fd, bad_gateway, strlen(bad_gateway));
+        close(remote_fd);
+        close(client_fd);
+        return;
+    }
+    printf("connected to %s port %d\n", target, port);
+    close(remote_fd);
+    close(client_fd);
+}
+
 // runs in its own thread: handles exactly one client
 void *handle_client(void *arg) {
     // get our socket from the box main() made, then free the box
@@ -36,9 +72,8 @@ void *handle_client(void *arg) {
         }
 	
 	if (strcmp(method, "CONNECT") == 0){
-	    printf("CONNECT to %s\n", url);
-    	    close(client_fd);
-    	    return NULL;
+	    handle_connect(client_fd, url);
+	    return NULL;
 	}
 	if (strncmp(url, "http://", 7) != 0) {
             write(client_fd, bad_request, strlen(bad_request));
