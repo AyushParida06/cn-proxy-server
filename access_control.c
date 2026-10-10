@@ -3,6 +3,21 @@
 
 #include<stdio.h>
 #include<string.h>
+#include<time.h>
+
+struct Client {
+    char ip[16];
+    int count;            // requests in the current minute
+    time_t window_start;  // when this minute began
+};
+struct Client clients[50];
+int client_count = 0;
+
+
+int is_rate_limited(const char *client_ip) {
+	return 0; 
+}
+
 
 int is_blocked(const char *host) {
     FILE *fp = fopen("blacklist.txt", "r");   // open the list for reading
