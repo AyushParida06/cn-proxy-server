@@ -44,7 +44,7 @@ void cache_put(const char *url, const char *response) {
 	cache_count++;
 }
 
-#define CACHE_TTL_SECONDS 3 
+#define CACHE_TTL_SECONDS 60
 
 int cache_get(const char *url, char *response, int size) {
     for (int i = 0; i < cache_count; i++) {
@@ -59,7 +59,7 @@ int cache_get(const char *url, char *response, int size) {
     }
     return 0;  
 }
-
+#ifdef TEST
 int main() {
     char buf[8192];
 
@@ -91,3 +91,4 @@ int main() {
 
     return 0;
 }
+#endif
