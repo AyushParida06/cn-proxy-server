@@ -10,6 +10,7 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
+#include <time.h>
 
 #define PORT 8888
 
@@ -149,6 +150,11 @@ void *handle_client(void *arg) {
             write(client_fd, tmp, r);
         }
         close(remote_fd);
+	time_t now = time(NULL);
+	char stamp[32];
+	strftime(stamp, sizeof(stamp), "%Y-%m-%d %H:%M:%S", localtime(&now));
+
+	printf("[%s] %s %s ALLOWED\n", stamp, client_ip, url);
 
         printf("Received:\n%s\n", buf);
     }
