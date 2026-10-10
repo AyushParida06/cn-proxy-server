@@ -4,6 +4,7 @@
 #include<string.h>
 #include<time.h>
 #include<unistd.h>
+#include "common.h"
 
 struct CacheEntry {
     char url[512];        // the key: which page this is
@@ -16,7 +17,6 @@ struct CacheEntry cache[10];
 int cache_count = 0;
 
 void cache_put(const char *url, const char *response) {
-	printf("cache_put called with %s\n", url);
 	for (int i = 0; i < cache_count; i++) {
     		if (strcmp(cache[i].url, url) == 0) {
         		strncpy(cache[i].response, response, sizeof(cache[i].response) - 1);
@@ -43,16 +43,51 @@ void cache_put(const char *url, const char *response) {
 	cache[cache_count].time_stored = time(NULL);
 	cache_count++;
 }
-int main(){
-		
-	char u[64];
-	for (int n = 0; n < 11; n++) {
-	    snprintf(u, sizeof(u), "http://site%d.com/", n);
-	    cache_put(u, "data");
-	    sleep(1);
-	}
-	for (int i=0; i<cache_count;i++) {
-		printf("%s %s %ld\n", cache[i].url, cache[i].response, (long)cache[i].time_stored);
-	}
-	return 0;
+
+#define CACHE_TTL_SECONDS 3 
+
+int cache_get(const char *url, char *response, int size) {
+    for (int i = 0; i < cache_count; i++) {
+        if (strcmp(cache[i].url, url) == 0) {
+        	int age = time(NULL) - cache[i].time_stored;
+		if (age < CACHE_TTL_SECONDS) {
+			strncpy(response, cache[i].response, size - 1);
+			response[size - 1] = '\0';
+			return 1;
+		}
+        }
+    }
+    return 0;  
+}
+
+int main() {
+    char buf[8192];
+
+    // 1. nothing stored yet, so this should be a MISS
+    if (cache_get("http://a.com/", buf, sizeof(buf))) {
+        printf("HIT\n");
+    } else {
+        printf("MISS\n");
+    }
+
+    // 2. store a page
+    cache_put("http://a.com/", "hello");
+
+    // 3. now it should be a HIT, and buf should hold the saved page
+    if (cache_get("http://a.com/", buf, sizeof(buf))) {
+        printf("HIT\n");
+        printf("%s\n", buf);
+    } else {
+        printf("MISS\n");
+    }
+
+    // 4. wait longer than the TTL (3 seconds), then it should be a MISS again
+    sleep(4);
+    if (cache_get("http://a.com/", buf, sizeof(buf))) {
+        printf("HIT\n");
+    } else {
+        printf("MISS\n");
+    }
+
+    return 0;
 }
