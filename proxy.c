@@ -45,6 +45,19 @@ void handle_connect(int client_fd, char *target){
         close(client_fd);
         return;
     }
+    char *established = "HTTP/1.1 200 Connection Established\r\n\r\n";
+    write(client_fd, established, strlen(established));
+    while (1) {
+	fd_set set;
+	FD_ZERO(&set);
+	FD_SET(client_fd, &set);
+        FD_SET(remote_fd, &set);
+        int max = client_fd;
+        if (remote_fd > max) { max = remote_fd; }
+        select(max + 1, &set, NULL, NULL, NULL);
+        printf("select woke up\n");
+        break;
+    }
     printf("connected to %s port %d\n", target, port);
     close(remote_fd);
     close(client_fd);
