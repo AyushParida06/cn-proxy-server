@@ -16,6 +16,13 @@ int cache_count = 0;
 
 void cache_put(const char *url, const char *response) {
 	printf("cache_put called with %s\n", url);
+	for(int i=0;i<cache_count;i++){
+		if (strcmp(cache[i].url, url) == 0) {
+			strncpy(cache[i].response, response, sizeof(cache[i].response) - 1);
+			cache[i].time_stored = time(NULL);
+			return;
+		}
+	}
 	strncpy(cache[cache_count].url, url, sizeof(cache[cache_count].url) - 1);
 	strncpy(cache[cache_count].response, response, sizeof(cache[cache_count].response) - 1);
 	cache[cache_count].time_stored = time(NULL);
@@ -24,6 +31,7 @@ void cache_put(const char *url, const char *response) {
 int main(){
 	cache_put("http://a.com/", "hello");
 	cache_put("http://b.com/", "world");
+	cache_put("http://a.com/", "new text");
 
 	for (int i=0; i<cache_count;i++) {
 		printf("%s %s %ld\n", cache[i].url, cache[i].response, (long)cache[i].time_stored);
