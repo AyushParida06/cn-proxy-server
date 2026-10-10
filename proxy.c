@@ -11,6 +11,7 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <time.h>
+#include "common.h"
 
 #define PORT 8888
 
@@ -134,6 +135,13 @@ void *handle_client(void *arg) {
         }
         host[i] = '\0';
         printf("host:   %s\n", host);
+
+	char cached[8192];
+	if(strcmp(method, "GET") == 0 && cache_get(url, cached, sizeof(cached))){
+	    write(client_fd, cached, strlen(cached));
+	    printf("[HIT] %s %s\n", client_ip, url);
+	    close(client_fd);return NULL;
+	}
 
         // DNS lookup; if it fails, tell the client with a 502
         struct hostent *server = gethostbyname(host);
