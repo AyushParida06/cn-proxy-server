@@ -56,3 +56,5 @@ dkms.conf
 
 proxy
 scratchproxy.log 
+proxy.log 
+ac_test 
