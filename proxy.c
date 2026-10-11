@@ -1,6 +1,7 @@
 // proxy core - Ayush
 
 #include <sys/select.h>
+#include <signal.h>
 #include <stdlib.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -15,13 +16,28 @@
 
 #define PORT 8888
 
-void handle_connect(int client_fd, char *target){
+void handle_connect(int client_fd, char *target, char *client_ip){
     int port = 443;                      
 
     char *colon = strchr(target, ':');
     if (colon != NULL) {
     	*colon = '\0';
    	 port = atoi(colon + 1);
+    }
+    
+    if (is_blocked(target)) {
+        char *forbidden = "HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n";
+        write(client_fd, forbidden, strlen(forbidden));
+        printf("[BLOCKED] %s %s\n", client_ip, target);
+        close(client_fd);
+        return;
+    }
+    if (is_rate_limited(client_ip)) {
+        char *too_many = "HTTP/1.1 429 Too Many Requests\r\nContent-Length: 0\r\n\r\n";
+        write(client_fd, too_many, strlen(too_many));
+        printf("[RATE LIMITED] %s %s\n", client_ip, target);
+        close(client_fd);
+        return;
     }
     struct hostent *server = gethostbyname(target);
     if (server == NULL) {
@@ -111,7 +127,7 @@ void *handle_client(void *arg) {
         }
 	
 	if (strcmp(method, "CONNECT") == 0){
-	    handle_connect(client_fd, url);
+	    handle_connect(client_fd, url, client_ip);
 	    return NULL;
 	}
 	if (strncmp(url, "http://", 7) != 0) {
@@ -135,6 +151,20 @@ void *handle_client(void *arg) {
         }
         host[i] = '\0';
         printf("host:   %s\n", host);
+	if (is_blocked(host)) {
+            char *forbidden = "HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n";
+            write(client_fd, forbidden, strlen(forbidden));
+            printf("[BLOCKED] %s %s\n", client_ip, url);
+            close(client_fd);
+            return NULL;
+        }
+        if (is_rate_limited(client_ip)) {
+            char *too_many = "HTTP/1.1 429 Too Many Requests\r\nContent-Length: 0\r\n\r\n";
+            write(client_fd, too_many, strlen(too_many));
+            printf("[RATE LIMITED] %s %s\n", client_ip, url);
+            close(client_fd);
+            return NULL;
+        }
 
 	char cached[8192];
 	if(strcmp(method, "GET") == 0 && cache_get(url, cached, sizeof(cached))){
@@ -213,8 +243,11 @@ void *handle_client(void *arg) {
 }
 
 int main() {
+    signal(SIGPIPE, SIG_IGN);
     // create a TCP socket (the "shop")
     int server_fd = socket(AF_INET, SOCK_STREAM, 0);
+    int opt = 1;
+    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
     // describe the address: IPv4, any interface, port 8888
     struct sockaddr_in addr;
@@ -224,7 +257,7 @@ int main() {
 
     // attach the socket to the port, then start waiting
     bind(server_fd, (struct sockaddr*)&addr, sizeof(addr));
-    listen(server_fd, 5);
+    listen(server_fd, 128);
 
     printf("Proxy listening on port %d...\n", PORT);
 
