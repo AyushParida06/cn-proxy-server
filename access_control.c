@@ -33,7 +33,12 @@ int is_rate_limited(const char *client_ip) {
     }
 
     // 2. not found: she decides what to do if the table is full (50 clients)
-    //    and writes an `if (client_count >= 50)` check here, with her rule as a comment
+    
+    if (client_count >= 50) {
+	// table is full: let the request through without tracking this client,
+	// so the proxy never writes past the end of the array
+	return 0;
+    }
 
     // 3. add a new row for this client
     strncpy(clients[client_count].ip, client_ip, 15);
