@@ -21,7 +21,10 @@ A multi-threaded HTTP/HTTPS forward proxy written in C, with response caching, a
 | `access_control.c` | Blacklist check, per-IP rate limiter, request logger |
 | `common.h` | Shared declarations (`cache_get`, `cache_put`, `is_blocked`, `is_rate_limited`, `log_request`) |
 | `blacklist.txt` | Blocked domains, one per line (`#` starts a comment) |
-| `tests/` | Local origin server, functional tests and benchmarks |
+| `tests/origin_server.c` | Local test website the proxy talks to during tests |
+| `tests/run_tests.c` | Functional tests (prints PASS/FAIL) |
+| `tests/benchmark.c` | Latency and throughput benchmark |
+| `tests/test_util.h` | Helpers shared by the test programs |
 
 ## Module details
 
@@ -60,8 +63,7 @@ instagram.com
 ## Requirements
 
 - Linux or WSL
-- `gcc` with pthread support
-- `curl` and `python3` (for testing)
+- `gcc` with pthread support (nothing else is needed, the tests are written in C too)
 
 ## Build
 
@@ -99,11 +101,24 @@ You can also set `localhost:8888` as the HTTP/HTTPS proxy in your browser or OS 
 
 ## Testing
 
-All test files live in `tests/`. Run them from the folder containing `proxy.c`.
+All test programs live in `tests/` and are written in C. Compile and run them from the folder containing `proxy.c`. Ports 8888 and 9000 must be free.
 
-- `origin_server.py`: local test website with fast, slow (200 ms delay), binary and no-store endpoints.
-- `run_tests.sh`: functional tests that print PASS/FAIL. Covers GET forwarding, cache MISS/HIT logging, binary-safe caching, no-store handling, blacklisting (including subdomains), unreachable hosts, POST, malformed requests, parallel clients and rate limiting.
-- `benchmark.sh`: measures latency and throughput, comparing direct access vs the proxy and cold vs warm cache. Results are saved to `tests/benchmark_results.txt`.
+- `origin_server.c`: local test website with fast, slow (200 ms delay), binary and no-store endpoints. The tests start it automatically; to run it by hand: `gcc -o tests/origin_server tests/origin_server.c -pthread && ./tests/origin_server 9000`.
+- `run_tests.c`: functional tests that print PASS/FAIL. Covers GET forwarding, cache MISS/HIT logging, binary-safe caching, no-store handling, blacklisting (including subdomains), unreachable hosts, POST, malformed requests, parallel clients and rate limiting.
+- `benchmark.c`: measures latency and throughput, comparing direct access vs the proxy and cold vs warm cache. Results are saved to `tests/benchmark_results.txt`.
+
+```bash
+# functional tests
+gcc -o tests/run_tests tests/run_tests.c -pthread
+./tests/run_tests
+
+# benchmark (optional: N latency samples, T total requests, C parallel clients)
+gcc -O2 -o tests/benchmark tests/benchmark.c -pthread
+./tests/benchmark
+N=50 T=500 C=20 ./tests/benchmark
+```
+
+Both programs build the proxy into a temporary folder, so your source files are not modified, and they clean everything up when they finish.
 
 Notes:
 
