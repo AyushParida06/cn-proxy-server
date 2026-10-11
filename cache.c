@@ -8,6 +8,7 @@
 #include <pthread.h>
 
 struct CacheEntry {
+    int len;
     char url[512];        // the key: which page this is
     char response[8192];  // the saved reply
     time_t time_stored;   // when we saved it (used later for the TTL check)
@@ -18,12 +19,16 @@ struct CacheEntry cache[10];
 int cache_count = 0;
 pthread_mutex_t cache_lock = PTHREAD_MUTEX_INITIALIZER;
 
-void cache_put(const char *url, const char *response) {
+void cache_put(const char *url, const char *response, int len) {
+	if(len<=0 || len>sizeof(cache[0].response)) {
+		return;
+	}
 	pthread_mutex_lock(&cache_lock);
 	for (int i = 0; i < cache_count; i++) {
     		if (strcmp(cache[i].url, url) == 0) {
-        		strncpy(cache[i].response, response, sizeof(cache[i].response) - 1);
+			memcpy(cache[i].response, response, len);
        	 		cache[i].time_stored = time(NULL);
+			cache[i].len = len;           
 			pthread_mutex_unlock(&cache_lock);
         		return;
     		}
@@ -37,16 +42,18 @@ void cache_put(const char *url, const char *response) {
 		}
 
 		strncpy(cache[oldest].url, url, sizeof(cache[oldest].url) - 1);
-		strncpy(cache[oldest].response, response, sizeof(cache[oldest].response) - 1);
-		cache[oldest].time_stored = time(NULL);
+		memcpy(cache[oldest].response, response, len);
+		cache[oldest].time_stored = time(NULL);          
+		cache[oldest].len = len;       
 		pthread_mutex_unlock(&cache_lock);
 		return;
 	}
 	strncpy(cache[cache_count].url, url, sizeof(cache[cache_count].url) - 1);
-	strncpy(cache[cache_count].response, response, sizeof(cache[cache_count].response) - 1);
+	memcpy(cache[cache_count].response, response, len);
 	cache[cache_count].time_stored = time(NULL);
-	pthread_mutex_unlock(&cache_lock);
+	cache[cache_count].len = len;
 	cache_count++;
+	pthread_mutex_unlock(&cache_lock);
 }
 
 #define CACHE_TTL_SECONDS 60
@@ -56,12 +63,16 @@ int cache_get(const char *url, char *response, int size) {
     for (int i = 0; i < cache_count; i++) {
         if (strcmp(cache[i].url, url) == 0) {
         	int age = time(NULL) - cache[i].time_stored;
-		if (age < CACHE_TTL_SECONDS) {
-			strncpy(response, cache[i].response, size - 1);
-			response[size - 1] = '\0';
-			pthread_mutex_unlock(&cache_lock);
-			return 1;
-		}
+			if (age < CACHE_TTL_SECONDS) {
+    				if ( cache[i].len > size ) {
+        				pthread_mutex_unlock(&cache_lock);
+        				return 0;
+    				}
+				memcpy(response, cache[i].response, cache[i].len);
+
+  				pthread_mutex_unlock(&cache_lock);
+    				return cache[i].len;
+			}
         }
     }
     pthread_mutex_unlock(&cache_lock);
@@ -79,7 +90,7 @@ int main() {
     }
 
     // 2. store a page
-    cache_put("http://a.com/", "hello");
+    cache_put("http://a.com/", "hello",5);
 
     // 3. now it should be a HIT, and buf should hold the saved page
     if (cache_get("http://a.com/", buf, sizeof(buf))) {
