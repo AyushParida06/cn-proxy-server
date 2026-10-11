@@ -3,7 +3,7 @@
 
 // cache.c (Aarushi)
 int cache_get(const char *url, char *response, int size);
-void cache_put(const char *url, const char *response);
+void cache_put(const char *url, const char *response, int len);
 
 // access_control.c (Jaysmita)
 int is_blocked(const char *host);
