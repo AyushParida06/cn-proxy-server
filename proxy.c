@@ -28,14 +28,14 @@ void handle_connect(int client_fd, char *target, char *client_ip){
     if (is_blocked(target)) {
         char *forbidden = "HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n";
         write(client_fd, forbidden, strlen(forbidden));
-        printf("[BLOCKED] %s %s\n", client_ip, target);
+        log_request(client_ip, target, "-", "BLOCKED");
         close(client_fd);
         return;
     }
     if (is_rate_limited(client_ip)) {
         char *too_many = "HTTP/1.1 429 Too Many Requests\r\nContent-Length: 0\r\n\r\n";
         write(client_fd, too_many, strlen(too_many));
-        printf("[RATE LIMITED] %s %s\n", client_ip, target);
+        log_request(client_ip, target, "-", "RATE_LIMITED");
         close(client_fd);
         return;
     }
@@ -64,6 +64,7 @@ void handle_connect(int client_fd, char *target, char *client_ip){
     }
     char *established = "HTTP/1.1 200 Connection Established\r\n\r\n";
     write(client_fd, established, strlen(established));
+    log_request(client_ip, target, "-", "ALLOWED");
     printf("connected to %s port %d\n", target, port);
     while (1) {
 	fd_set set;
@@ -165,14 +166,14 @@ void *handle_client(void *arg) {
 	if (is_blocked(host)) {
             char *forbidden = "HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n";
             write(client_fd, forbidden, strlen(forbidden));
-            printf("[BLOCKED] %s %s\n", client_ip, url);
+            log_request(client_ip, url, "-", "BLOCKED");
             close(client_fd);
             return NULL;
         }
         if (is_rate_limited(client_ip)) {
             char *too_many = "HTTP/1.1 429 Too Many Requests\r\nContent-Length: 0\r\n\r\n";
             write(client_fd, too_many, strlen(too_many));
-            printf("[RATE LIMITED] %s %s\n", client_ip, url);
+            log_request(client_ip, url, "-", "RATE_LIMITED");
             close(client_fd);
             return NULL;
         }
@@ -180,7 +181,7 @@ void *handle_client(void *arg) {
 	char cached[8192];
 	if(strcmp(method, "GET") == 0 && cache_get(url, cached, sizeof(cached))){
 	    write(client_fd, cached, strlen(cached));
-	    printf("[HIT] %s %s\n", client_ip, url);
+	    log_request(client_ip, url, "HIT", "ALLOWED");
 	    close(client_fd);return NULL;
 	}
 
@@ -244,12 +245,7 @@ void *handle_client(void *arg) {
 	if(strcmp(method, "GET") == 0 && total < sizeof(full) && strncmp(full, "HTTP/1.1 200", 12) == 0 && strstr(full, "no-store") == NULL){
 		cache_put(url, full);
 	}
-	time_t now = time(NULL);
-	char stamp[32];
-	strftime(stamp, sizeof(stamp), "%Y-%m-%d %H:%M:%S", localtime(&now));
-
-	printf("[%s] %s %s ALLOWED\n", stamp, client_ip, url);
-
+	log_request(client_ip, url, "MISS", "ALLOWED");
         printf("Received:\n%s\n", buf);
     }
 
