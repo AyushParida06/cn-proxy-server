@@ -8,5 +8,6 @@ void cache_put(const char *url, const char *response);
 // access_control.c (Jaysmita)
 int is_blocked(const char *host);
 int is_rate_limited(const char *client_ip);
+void log_request(const char *ip, const char *url, const char *cache_status, const char *decision);
 
 #endif
