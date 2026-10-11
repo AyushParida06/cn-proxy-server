@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <strings.h>
 #include <time.h>
 #include "common.h"
 #include <pthread.h>
@@ -67,22 +68,53 @@ int is_blocked(const char *host) {
 
     char line[256];
     while (fgets(line, sizeof(line), fp) != NULL) {
-        line[strcspn(line, "\r\n")] = '\0';
-        if (strcmp(line, host) == 0) {
-            fclose(fp);
-            return 1;
-        }
+	
+	line[strcspn(line, "\r\n")] = '\0';
+	if (line[0] == '\0' || line[0] == '#') { continue; }
+	size_t host_len = strlen(host);
+	
+	size_t line_len = strlen(line);
+        // the last line_len characters of host
+	if (host_len == line_len) {
+            if (strcasecmp(host, line) == 0) {
+        	  fclose(fp);
+       		  return 1;
+            }
+	} else if (host_len > line_len) {
+		const char *tail = host + (host_len - line_len);
+                char before = host[host_len - line_len - 1];
+   		if (strcasecmp(tail, line) == 0 && before == '.') {
+                	fclose(fp);
+                	return 1;
+                 }
+	 }
+	
     }
 
     fclose(fp);
     return 0;
 }
 
+pthread_mutex_t log_lock = PTHREAD_MUTEX_INITIALIZER;
+
+void log_request(const char *ip, const char *url, const char *cache_status, const char *decision) {
+    pthread_mutex_lock(&log_lock);
+    FILE *fp = fopen("proxy.log", "a");
+    if (fp != NULL) {
+        time_t now = time(NULL);
+        char stamp[32];
+        strftime(stamp, sizeof(stamp), "%Y-%m-%d %H:%M:%S", localtime(&now));
+        fprintf(fp, "%s | %s | %s | %s | %s\n", stamp, ip, url, cache_status, decision);
+        fclose(fp);
+    }
+    pthread_mutex_unlock(&log_lock);
+}
 #ifdef TEST
 int main() {
     // test 1: the blacklist
-    printf("facebook.com -> %d\n", is_blocked("facebook.com"));
-    printf("example.com  -> %d\n", is_blocked("example.com"));
+    printf("www.facebook.com -> %d (expect 1)\n", is_blocked("www.facebook.com"));
+    printf("Facebook.COM     -> %d (expect 1)\n", is_blocked("Facebook.COM"));
+    printf("notfacebook.com  -> %d (expect 0)\n", is_blocked("notfacebook.com"));	
 
     // test 2: the rate limiter (limit is 5 while testing)
     for (int n = 1; n <= 7; n++) {
