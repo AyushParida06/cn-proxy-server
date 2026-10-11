@@ -179,8 +179,9 @@ void *handle_client(void *arg) {
         }
 
 	char cached[8192];
-	if(strcmp(method, "GET") == 0 && cache_get(url, cached, sizeof(cached))){
-	    write(client_fd, cached, strlen(cached));
+	int hit_len;
+    if (strcmp(method, "GET") == 0 && (hit_len = cache_get(url, cached, sizeof(cached))) > 0) {
+        write(client_fd, cached, hit_len);
 	    log_request(client_ip, url, "HIT", "ALLOWED");
 	    close(client_fd);return NULL;
 	}
@@ -243,7 +244,7 @@ void *handle_client(void *arg) {
 		full[total] = '\0';
 	}
 	if(strcmp(method, "GET") == 0 && total < sizeof(full) && strncmp(full, "HTTP/1.1 200", 12) == 0 && strstr(full, "no-store") == NULL){
-		cache_put(url, full);
+		cache_put(url, full, total);
 	}
 	log_request(client_ip, url, "MISS", "ALLOWED");
         printf("Received:\n%s\n", buf);
