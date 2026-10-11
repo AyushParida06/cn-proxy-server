@@ -130,6 +130,12 @@ void *handle_client(void *arg) {
 	    handle_connect(client_fd, url, client_ip);
 	    return NULL;
 	}
+	if (strcmp(method, "GET") != 0 && strcmp(method, "HEAD") != 0) {
+	    char *not_impl = "HTTP/1.1 501 Not Implemented\r\nContent-Length: 0\r\n\r\n";
+	    write(client_fd, not_impl, strlen(not_impl));
+	    close(client_fd);
+	    return NULL;
+	}
 	if (strncmp(url, "http://", 7) != 0) {
             write(client_fd, bad_request, strlen(bad_request));
             close(client_fd);
@@ -150,6 +156,11 @@ void *handle_client(void *arg) {
             i++;
         }
         host[i] = '\0';
+	int port = 80;
+        if (start[i] == ':') {
+            port = atoi(start + i + 1);
+            if (port <= 0 || port > 65535) { port = 80; }
+        }
         printf("host:   %s\n", host);
 	if (is_blocked(host)) {
             char *forbidden = "HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n";
@@ -187,7 +198,7 @@ void *handle_client(void *arg) {
         struct sockaddr_in remote;
         memset(&remote, 0, sizeof(remote));
         remote.sin_family = AF_INET;
-        remote.sin_port = htons(80);
+        remote.sin_port = htons(port);
         memcpy(&remote.sin_addr, server->h_addr_list[0], server->h_length);
         if (connect(remote_fd, (struct sockaddr*)&remote, sizeof(remote)) < 0) {
             printf("Connect failed\n");
@@ -204,10 +215,15 @@ void *handle_client(void *arg) {
         if (path == NULL) {
             path = "/";
         }
+        char hostport[300];
+        if (port != 80) {
+            snprintf(hostport, sizeof(hostport), "%s:%d", host, port);
+        } else {
+            snprintf(hostport, sizeof(hostport), "%s", host);
+        }
         char req[1024];
-        snprintf(req, sizeof(req), "GET %s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", path, host);
-        printf("Sending:\n%s", req);
-        write(remote_fd, req, strlen(req));
+        snprintf(req, sizeof(req), "%s %s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", method, path, hostport);
+	write(remote_fd, req, strlen(req));
 
         // relay the website's reply to the client
         char tmp[4096];
@@ -266,6 +282,7 @@ int main() {
 	struct sockaddr_in client_addr;
 	socklen_t len = sizeof(client_addr);
         int client_fd = accept(server_fd, (struct sockaddr*)&client_addr, &len);
+	if (client_fd < 0) { continue; }
 	char *ip = inet_ntoa(client_addr.sin_addr);
 
         // a separate box per client, so the thread has its own copy
