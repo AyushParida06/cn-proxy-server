@@ -182,10 +182,22 @@ void *handle_client(void *arg) {
         // relay the website's reply to the client
         char tmp[4096];
         int r;
+	char full[8192];
+	int total = 0;
         while ((r = read(remote_fd, tmp, sizeof(tmp))) > 0) {
+	    if(total + r < sizeof(full)){
+		memcpy(full + total, tmp, r);
+	    }
+	    total += r;
             write(client_fd, tmp, r);
         }
         close(remote_fd);
+	if(total < sizeof(full)){
+		full[total] = '\0';
+	}
+	if(strcmp(method, "GET") == 0 && total < sizeof(full) && strncmp(full, "HTTP/1.1 200", 12) == 0 && strstr(full, "no-store") == NULL){
+		cache_put(url, full);
+	}
 	time_t now = time(NULL);
 	char stamp[32];
 	strftime(stamp, sizeof(stamp), "%Y-%m-%d %H:%M:%S", localtime(&now));
