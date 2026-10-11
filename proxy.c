@@ -1,6 +1,7 @@
 // proxy core - Ayush
 
 #include <sys/select.h>
+#include <signal.h>
 #include <stdlib.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -242,8 +243,11 @@ void *handle_client(void *arg) {
 }
 
 int main() {
+    signal(SIGPIPE, SIG_IGN);
     // create a TCP socket (the "shop")
     int server_fd = socket(AF_INET, SOCK_STREAM, 0);
+    int opt = 1;
+    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
     // describe the address: IPv4, any interface, port 8888
     struct sockaddr_in addr;
@@ -253,7 +257,7 @@ int main() {
 
     // attach the socket to the port, then start waiting
     bind(server_fd, (struct sockaddr*)&addr, sizeof(addr));
-    listen(server_fd, 5);
+    listen(server_fd, 128);
 
     printf("Proxy listening on port %d...\n", PORT);
 
