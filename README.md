@@ -129,5 +129,5 @@ gcc -DTEST access_control.c -o access_test -pthread
 
 - Cache module: Aarushi
 - Access control and logging: Jaysmita
-- Proxy core and testing: Sandipan
-- Repository owner: Ayush Parida
+- Readme and testing: Sandipan
+- proxy core: Ayush Parida
