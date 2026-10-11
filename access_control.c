@@ -3,8 +3,10 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+#include "common.h"
+#include <pthread.h>
 
-#define RATE_LIMIT 5   // 5 while testing; the real limit is set later
+#define RATE_LIMIT 20   
 
 struct Client {
     char ip[16];
@@ -14,7 +16,11 @@ struct Client {
 struct Client clients[50];
 int client_count = 0;
 
+pthread_mutex_t rate_lock = PTHREAD_MUTEX_INITIALIZER;
+
 int is_rate_limited(const char *client_ip) {
+    
+    pthread_mutex_lock(&rate_lock);
     // 1. search: is this client already in the table?
     for (int i = 0; i < client_count; i++) {
         if (strcmp(clients[i].ip, client_ip) == 0) {
@@ -22,24 +28,34 @@ int is_rate_limited(const char *client_ip) {
             if (time(NULL) - clients[i].window_start >= 60) {
                 clients[i].count = 1;
                 clients[i].window_start = time(NULL);
+		pthread_mutex_unlock(&rate_lock);
                 return 0;
             }
             clients[i].count++;
             if (clients[i].count > RATE_LIMIT) {
+		pthread_mutex_unlock(&rate_lock);
                 return 1;
             }
+	    pthread_mutex_unlock(&rate_lock);
             return 0;
         }
     }
 
     // 2. not found: she decides what to do if the table is full (50 clients)
-    //    and writes an `if (client_count >= 50)` check here, with her rule as a comment
+    
+    if (client_count >= 50) {
+	// table is full: let the request through without tracking this client,
+	// so the proxy never writes past the end of the array
+	pthread_mutex_unlock(&rate_lock);
+	return 0;
+    }
 
     // 3. add a new row for this client
     strncpy(clients[client_count].ip, client_ip, 15);
     clients[client_count].count = 1;
     clients[client_count].window_start = time(NULL);
     client_count++;
+    pthread_mutex_unlock(&rate_lock);
     return 0;
 }
 
